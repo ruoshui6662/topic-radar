@@ -2,11 +2,14 @@
 用法：python -m app.scripts.make_report [YYYY-MM-DD]"""
 import asyncio
 import datetime as dt
+import logging
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 from app.db import SessionLocal  # noqa: E402
 from app.llm.report import build_report  # noqa: E402
@@ -17,6 +20,7 @@ async def main() -> None:
     if len(sys.argv) > 1:
         date = dt.date.fromisoformat(sys.argv[1])
 
+    logging.info("开始生成日报 %s（LLM 评估中，请稍候…）", date)
     session = SessionLocal()
     try:
         report = await build_report(session, date)

@@ -13,15 +13,24 @@ logger = logging.getLogger(__name__)
 def _client() -> AsyncOpenAI:
     if not settings.deepseek_api_key:
         raise RuntimeError("未配置 DEEPSEEK_API_KEY，请在 .env 中填写（platform.deepseek.com 获取）")
-    return AsyncOpenAI(api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url)
+    return AsyncOpenAI(
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        timeout=120.0,   # 网关可能较慢，设上限避免无限等待
+        max_retries=0,   # 由 chat_json 自行重试
+    )
 
 
 def _parse_json(content: str) -> dict:
-    """解析 LLM 返回 JSON：容忍代码围栏与前后杂质。"""
+    """解析 LLM 返回 JSON：容忍代码围栏、前后杂质与网关追加的 SSE 尾巴（如 `data: [DONE]`）。"""
     c = content.strip()
     if c.startswith("```"):
         c = c.split("\n", 1)[1] if "\n" in c else c[3:]
         c = c.rsplit("```", 1)[0].strip()
+    # 网关即使非流式请求也可能附加 SSE 行，先截断
+    sse_pos = c.find("data: ")
+    if sse_pos > 0:
+        c = c[:sse_pos]
     start, end = c.find("{"), c.rfind("}")
     if start == -1 or end <= start:
         raise ValueError(f"LLM 返回中未找到 JSON 对象: {content[:200]}")
