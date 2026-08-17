@@ -50,6 +50,9 @@ def _job_report() -> None:
 
 
 def _job_push() -> None:
+    if not settings.feishu_webhook_url:
+        logger.info("未配置 FEISHU_WEBHOOK_URL，跳过日报推送（M4 再接）")
+        return
     import asyncio
     session = SessionLocal()
     try:
