@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 环境与数据
+.env
+data/
+*.db
+*.sqlite3
+
+# Node / 前端（M3）
+node_modules/
+dist/
+
+# 系统
+.DS_Store
+Thumbs.db

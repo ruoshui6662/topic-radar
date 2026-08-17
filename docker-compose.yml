@@ -1,0 +1,52 @@
+# NAS 部署编排（v0.4 规划 §12）。
+# 使用：cp .env.example .env 并填写 → docker compose up -d
+# 说明：app 镜像由 GitHub Actions/本地构建推送到 ghcr.io（见 deploy/ 文档）。
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: workbench
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-workbench}
+      POSTGRES_DB: workbench
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workbench -d workbench"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: ghcr.io/${GITHUB_USER}/wechat-workbench:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://workbench:${POSTGRES_PASSWORD:-workbench}@postgres:5432/workbench
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL}
+      TZ: Asia/Shanghai
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+
+  # ---- 可选服务（按需启用）----
+  # ① SearXNG（M2 话题扩展用）
+  # searxng:
+  #   image: searxng/searxng
+  #   restart: unless-stopped
+  #   ports: ["8081:8080"]
+  #   volumes: ["./data/searxng:/etc/searxng"]
+  #   environment: { TZ: Asia/Shanghai }
+
+  # ② wewe-rss（公众号内容流，M1 spike / M2 正式接入）
+  # 需要 mongo + redis 两个依赖，见 deploy/wewe-rss.md 独立部署说明
+
+  # ③ tophub 热榜容器（覆盖微博/知乎/抖音等直连被拦的源）
+  # 镜像待部署时核实（tophubs/TopList 社区镜像），确认后补此段
