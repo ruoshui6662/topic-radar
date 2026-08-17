@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
+    llm_timeout: float = 240.0   # 单次 LLM 调用超时（秒）
+    llm_chunk_size: int = 6      # 日报评估按几个话题分块
 
     # 飞书推送
     feishu_webhook_url: str = ""

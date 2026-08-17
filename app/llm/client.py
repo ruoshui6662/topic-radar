@@ -16,8 +16,8 @@ def _client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=settings.deepseek_api_key,
         base_url=settings.deepseek_base_url,
-        timeout=120.0,   # 网关可能较慢，设上限避免无限等待
-        max_retries=0,   # 由 chat_json 自行重试
+        timeout=settings.llm_timeout,  # 网关可能较慢，设上限避免无限等待
+        max_retries=0,                 # 由 chat_json 自行重试
     )
 
 
