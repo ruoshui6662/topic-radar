@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>选题工作台</title>
+<style>
+  :root { --bg:#0f1420; --card:#1a2233; --line:#2a3550; --txt:#e6edf7; --sub:#8fa3bf;
+          --s:#ff5b5b; --a:#ffa63d; --b:#4d9fff; --c:#7f8fa6; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.6 "PingFang SC","Microsoft YaHei",sans-serif; padding:20px; }
+  header { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+  header h1 { font-size:20px; }
+  header .env { color:var(--sub); font-size:12px; }
+  header .clock { margin-left:auto; color:var(--sub); font-size:12px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  section h2 { font-size:15px; margin-bottom:12px; color:var(--sub); font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
+  .src { padding:10px; border:1px solid var(--line); border-radius:8px; }
+  .src .name { font-weight:600; }
+  .src .time { font-size:11px; color:var(--sub); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot.ok { background:#2ecc71; } .dot.fail { background:#ff5b5b; }
+  .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { background:#2b3b5e; color:#fff; border:1px solid var(--line); border-radius:8px;
+           padding:8px 16px; cursor:pointer; font-size:13px; }
+  button:hover { background:#37507f; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #opResult { margin-top:10px; font-size:12px; color:var(--sub); white-space:pre-wrap; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; color:var(--sub); font-weight:500; font-size:12px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:hover td { background:#1f2a41; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:4px; font-size:12px; font-weight:700; color:#fff; }
+  .b-S { background:var(--s); } .b-A { background:var(--a); } .b-B { background:var(--b); } .b-C { background:var(--c); }
+  .heatbar { width:70px; height:6px; background:#26304a; border-radius:3px; overflow:hidden; }
+  .heatbar i { display:block; height:100%; background:linear-gradient(90deg,#4d9fff,#ffa63d); }
+  .meta { color:var(--sub); font-size:12px; }
+  .empty { color:var(--sub); padding:16px; text-align:center; }
+  #refresh { margin-left:auto; color:var(--sub); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 选题工作台</h1>
+  <span class="env">M1 轻量版 · 完整工作台 M3 上线</span>
+  <span class="clock" id="clock"></span>
+</header>
+
+<section>
+  <h2>🛰 数据源状态</h2>
+  <div class="grid" id="sources"><div class="empty">加载中…</div></div>
+</section>
+
+<section>
+  <h2>⚙ 手动触发</h2>
+  <div class="actions">
+    <button id="btnCollect">① 立即采集</button>
+    <button id="btnReport">② 生成今日日报</button>
+    <span id="refresh"></span>
+  </div>
+  <div id="opResult"></div>
+</section>
+
+<section>
+  <h2>🔥 话题热榜 Top 20</h2>
+  <div id="topics"><div class="empty">加载中…</div></div>
+</section>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = async (path, opt) => {
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || j.error || `HTTP ${r.status}`);
+  return j;
+};
+const fmt = iso => iso ? iso.replace("T"," ").slice(0,16) : "—";
+
+function clock() { $("#clock").textContent = new Date().toLocaleString("zh-CN"); }
+
+async function loadSources() {
+  try {
+    const h = await api("/health");
+    const names = {baidu:"百度热搜", bilibili:"B站", toutiao:"头条", hackernews:"Hacker News",
+                   v2ex:"V2EX", github:"GitHub Trending", ithome:"IT之家", sspai:"少数派"};
+    const entries = Object.entries(h.last_collect || {});
+    $("#sources").innerHTML = entries.map(([k,t]) => `
+      <div class="src"><span class="dot ${t?'ok':'fail'}"></span><span class="name">${names[k]||k}</span>
+      <br><span class="time">${fmt(t)}</span></div>`).join("") || '<div class="empty">无采集记录，点「立即采集」</div>';
+  } catch(e) { $("#sources").innerHTML = `<div class="empty">加载失败：${e.message}</div>`; }
+}
+
+function badge(l) { return `<span class="badge b-${l||'C'}">${l||'C'}</span>`; }
+
+async function loadTopics() {
+  try {
+    const rows = await api("/api/topics?limit=20");
+    $("#topics").innerHTML = !rows.length ? '<div class="empty">暂无话题，先采集</div>' : `
+      <table><thead><tr><th>等级</th><th>热度</th><th>话题</th><th>覆盖</th><th>首次出现</th></tr></thead>
+      <tbody>${rows.map(t => `
+        <tr><td>${badge(t.heat_level)}</td>
+        <td><div class="heatbar"><i style="width:${Math.min(t.heat_score,100)}%"></i></div>
+            <span class="meta">${t.heat_score ?? "—"}</span></td>
+        <td>${t.title}</td>
+        <td class="meta">${t.platforms} 平台 / ${t.items} 条</td>
+        <td class="meta">${fmt(t.first_seen)}</td></tr>`).join("")}</tbody></table>`;
+  } catch(e) { $("#topics").innerHTML = `<div class="empty">加载失败：${e.message}</div>`; }
+}
+
+let countdown = 60;
+function tick() { $("#refresh").textContent = `自动刷新 ${countdown--}s`; if (countdown < 0) { countdown = 60; refresh(); } }
+
+async function refresh() { await Promise.all([loadSources(), loadTopics()]); }
+
+async function doOp(id, btn, label) {
+  const b = $(btn); b.disabled = true; $("#opResult").textContent = `${label}中…`;
+  try {
+    const j = await api(id, { method: "POST" });
+    $("#opResult").textContent = `${label}完成 ✅\n${JSON.stringify(j, null, 2)}`;
+    refresh();
+  } catch(e) { $("#opResult").textContent = `${label}失败 ❌\n${e.message}`; }
+  finally { b.disabled = false; }
+}
+
+$("#btnCollect").onclick = () => doOp("/api/trigger/collect", "#btnCollect", "采集+聚类");
+$("#btnReport").onclick = () => doOp("/api/trigger/report", "#btnReport", "生成日报");
+
+clock(); refresh(); setInterval(tick, 1000);
+</script>
+</body>
+</html>
